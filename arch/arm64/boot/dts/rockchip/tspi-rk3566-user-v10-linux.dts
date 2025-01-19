@@ -146,12 +146,12 @@
 	pinctrl-names = "default", "high_speed";
 	pinctrl-0 = <&spi3m1_cs0 &spi3m1_pins>;
 	pinctrl-1 = <&spi3m1_cs0 &spi3m1_pins_hs>;
-	// spi_test@10 {
-	// 	compatible ="rockchip,spi_test_bus1_cs0";
-	// 	reg = <0>;
-	// 	spi-max-frequency = <24000000>;
-	// 	status = "okay";
-	// };
+	spi_test@10 {
+		compatible ="rockchip,spi_test_bus1_cs0";
+		reg = <0>;
+		spi-max-frequency = <24000000>;
+		status = "okay";
+	};
 };
 
 &pwm8 {
