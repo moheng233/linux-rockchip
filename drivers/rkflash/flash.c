@@ -508,3 +508,5 @@ u32 nandc_flash_deinit(void)
 {
 	return 0;
 }
+
+// MODULE_LICENSE("GPL");

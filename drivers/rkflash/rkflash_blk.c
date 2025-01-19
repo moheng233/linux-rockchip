@@ -264,7 +264,7 @@ static blk_status_t do_blktrans_all_request(struct flash_blk_ops *tr,
 	totle_nsect = (req->__data_len) >> 9;
 
 	if (blk_rq_pos(req) + blk_rq_cur_sectors(req) >
-	    get_capacity(req->rq_disk))
+	    get_capacity(req->q->disk))
 		return BLK_STS_IOERR;
 
 	switch (req_op(req)) {
@@ -523,7 +523,7 @@ static int rkflash_blk_add_dev(struct flash_blk_dev *dev,
 	if (part->size == 0)
 		return -1;
 
-	gd = alloc_disk(1 << blk_ops->minorbits);
+	gd = blk_alloc_disk(1 << blk_ops->minorbits);
 	if (!gd) {
 		kfree(dev);
 		return -ENOMEM;
@@ -546,7 +546,7 @@ static int rkflash_blk_add_dev(struct flash_blk_dev *dev,
 			 "%s",
 			 part->name);
 	} else {
-		gd->flags = GENHD_FL_EXT_DEVT;
+		// gd->flags = GENHD_FL_EXT_DEVT;
 		gd->minors = 255;
 		snprintf(gd->disk_name,
 			 sizeof(gd->disk_name),
@@ -619,10 +619,15 @@ static int rkflash_blk_register(struct flash_blk_ops *blk_ops)
 	if (!blk_ops->tag_set)
 		goto error1;
 
-	blk_ops->rq = blk_mq_init_sq_queue(blk_ops->tag_set, &rkflash_mq_ops, 1,
-					   BLK_MQ_F_SHOULD_MERGE | BLK_MQ_F_BLOCKING);
+	// blk_ops->rq = blk_mq_init_sq_queue(blk_ops->tag_set, &rkflash_mq_ops, 1,
+	// 				   BLK_MQ_F_SHOULD_MERGE | BLK_MQ_F_BLOCKING);
+
+	blk_mq_alloc_sq_tag_set(blk_ops->tag_set, &rkflash_mq_ops, 1, BLK_MQ_F_SHOULD_MERGE | BLK_MQ_F_BLOCKING);
+	blk_ops->rq = blk_mq_init_queue(blk_ops->tag_set);
+
 	if (IS_ERR(blk_ops->rq)) {
 		ret = PTR_ERR(blk_ops->rq);
+		blk_mq_free_tag_set(blk_ops->tag_set);
 		blk_ops->rq = NULL;
 		goto error2;
 	}
@@ -632,7 +637,7 @@ static int rkflash_blk_register(struct flash_blk_ops *blk_ops)
 	blk_queue_max_hw_sectors(blk_ops->rq, MTD_RW_SECTORS);
 	blk_queue_max_segments(blk_ops->rq, MTD_RW_SECTORS);
 
-	blk_queue_flag_set(QUEUE_FLAG_DISCARD, blk_ops->rq);
+	// blk_queue_flag_set(QUEUE_FLAG_DISCARD, blk_ops->rq);
 	blk_queue_max_discard_sectors(blk_ops->rq, UINT_MAX >> 9);
 	blk_ops->rq->limits.discard_granularity = 64 << 9;
 
@@ -686,7 +691,7 @@ static void rkflash_blk_unregister(struct flash_blk_ops *blk_ops)
 
 		rkflash_blk_remove_dev(dev);
 	}
-	blk_cleanup_queue(blk_ops->rq);
+	blk_mq_destroy_queue(blk_ops->rq);
 	unregister_blkdev(blk_ops->major, blk_ops->name);
 }
 

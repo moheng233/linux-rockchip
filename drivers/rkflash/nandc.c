@@ -470,3 +470,5 @@ u32 nandc_xfer_data(u8 chip_sel, u8 dir, u8 n_sec,
 void nandc_clean_irq(void)
 {
 }
+
+// MODULE_LICENSE("GPL");

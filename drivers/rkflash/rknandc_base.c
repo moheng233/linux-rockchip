@@ -190,3 +190,4 @@ static int __init rknandc_driver_init(void)
 module_init(rknandc_driver_init);
 module_exit(rknandc_driver_exit);
 MODULE_ALIAS("rknandc");
+MODULE_LICENSE("GPL");

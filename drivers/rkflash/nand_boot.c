@@ -81,3 +81,4 @@ const struct flash_boot_ops nandc_nand_ops = {
 	sftl_flash_discard,
 };
 
+// MODULE_LICENSE("GPL");

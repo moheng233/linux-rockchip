@@ -10,6 +10,11 @@
 #
 # Normal rules (sorted alphabetically)
 #
+
+.version
+.config
+.config.*
+
 *.a
 *.asn1.[ch]
 *.bin
@@ -50,6 +55,7 @@
 *.usyms
 *.xz
 *.zst
+*.cmd
 Module.symvers
 modules.order
 
