@@ -216,11 +216,18 @@ endef
 
 MAKE_MODULES ?= y
 
+kernel.img: Image.lz4
+	$(Q)scripts/mkkrnlimg $(objtree)/arch/arm64/boot/Image $(objtree)/kernel.img >/dev/null
+	@echo '  Image:  kernel.img is ready'
+ifdef CONFIG_MODULES
+	$(Q)if [ "$(srctree)" = "$(objtree)" ]; then $(MAKE) modules; fi
+endif
+
 %.img:
 ifeq ("$(CONFIG_MODULES)$(MAKE_MODULES)$(srctree)","yy$(objtree)")
-	$(Q)$(MAKE) rockchip/$*.dtb Image.lz4 modules
+	$(Q)$(MAKE) rockchip/$*.dtb Image.lz4 modules kernel.img
 else
-	$(Q)$(MAKE) rockchip/$*.dtb Image.lz4
+	$(Q)$(MAKE) rockchip/$*.dtb Image.lz4 kernel.img
 endif
 	$(Q)$(srctree)/scripts/mkimg --dtb $*.dtb
 

@@ -14,6 +14,13 @@
 .version
 .config
 .config.*
+.tmp_*
+.checked-*
+.vscode
+.vscode-ctags
+.missing-syscalls.d
+.vmlinux.export.c
+
 
 *.a
 *.asn1.[ch]
