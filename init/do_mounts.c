@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
+#include "linux/string.h"
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/ctype.h>
@@ -28,11 +29,14 @@
 #include "do_mounts.h"
 
 int root_mountflags = MS_RDONLY | MS_SILENT;
-static char * __initdata root_device_name;
+static char *__initdata root_device_name;
+static char *__initdata overlayroot_device_name;
 static char __initdata saved_root_name[64];
+static char __initdata saved_overlayroot_name[64];
 static int root_wait;
 
 dev_t ROOT_DEV;
+dev_t OVERLAYROOT_DEV;
 
 static int __init load_ramdisk(char *str)
 {
@@ -300,7 +304,14 @@ static int __init root_dev_setup(char *line)
 	return 1;
 }
 
+static int __init overlayroot_dev_setup(char *line)
+{
+	strscpy(saved_overlayroot_name, line, sizeof(saved_overlayroot_name));
+	return 1;
+}
+
 __setup("root=", root_dev_setup);
+__setup("overlayroot=", overlayroot_dev_setup);
 
 static int __init rootwait_setup(char *str)
 {
@@ -312,14 +323,14 @@ static int __init rootwait_setup(char *str)
 
 __setup("rootwait", rootwait_setup);
 
-static char * __initdata root_mount_data;
+static char *__initdata root_mount_data;
 static int __init root_data_setup(char *str)
 {
 	root_mount_data = str;
 	return 1;
 }
 
-static char * __initdata root_fs_names;
+static char *__initdata root_fs_names;
 static int __init fs_names_setup(char *str)
 {
 	root_fs_names = str;
@@ -336,6 +347,15 @@ static int __init root_delay_setup(char *str)
 __setup("rootflags=", root_data_setup);
 __setup("rootfstype=", fs_names_setup);
 __setup("rootdelay=", root_delay_setup);
+
+static char *__initdata overlayroot_fs_names;
+static int __init overlayrootfs_names_setup(char *str)
+{
+	overlayroot_fs_names = str;
+	return 1;
+}
+
+__setup("overlayrootfstype=", overlayrootfs_names_setup);
 
 /* This can return zero length strings. Caller should check */
 static int __init split_fs_names(char *page, size_t size, char *names)
@@ -355,7 +375,7 @@ static int __init split_fs_names(char *page, size_t size, char *names)
 }
 
 static int __init do_mount_root(const char *name, const char *fs,
-				 const int flags, const void *data)
+				const int flags, const void *data)
 {
 	struct super_block *s;
 	struct page *p = NULL;
@@ -381,8 +401,7 @@ static int __init do_mount_root(const char *name, const char *fs,
 	ROOT_DEV = s->s_dev;
 	printk(KERN_INFO
 	       "VFS: Mounted root (%s filesystem)%s on device %u:%u.\n",
-	       s->s_type->name,
-	       sb_rdonly(s) ? " readonly" : "",
+	       s->s_type->name, sb_rdonly(s) ? " readonly" : "",
 	       MAJOR(ROOT_DEV), MINOR(ROOT_DEV));
 
 out:
@@ -399,33 +418,33 @@ void __init mount_block_root(char *name, int flags)
 	char b[BDEVNAME_SIZE];
 	int num_fs, i;
 
-	scnprintf(b, BDEVNAME_SIZE, "unknown-block(%u,%u)",
-		  MAJOR(ROOT_DEV), MINOR(ROOT_DEV));
+	scnprintf(b, BDEVNAME_SIZE, "unknown-block(%u,%u)", MAJOR(ROOT_DEV),
+		  MINOR(ROOT_DEV));
 	if (root_fs_names)
 		num_fs = split_fs_names(fs_names, PAGE_SIZE, root_fs_names);
 	else
 		num_fs = list_bdev_fs_names(fs_names, PAGE_SIZE);
 retry:
-	for (i = 0, p = fs_names; i < num_fs; i++, p += strlen(p)+1) {
+	for (i = 0, p = fs_names; i < num_fs; i++, p += strlen(p) + 1) {
 		int err;
 
 		if (!*p)
 			continue;
 		err = do_mount_root(name, p, flags, root_mount_data);
 		switch (err) {
-			case 0:
-				goto out;
-			case -EACCES:
-			case -EINVAL:
-				continue;
+		case 0:
+			goto out;
+		case -EACCES:
+		case -EINVAL:
+			continue;
 		}
-	        /*
+		/*
 		 * Allow the user to distinguish between failed sys_open
 		 * and bad superblock on root device.
 		 * and give them a list of the available devices
 		 */
 		printk("VFS: Cannot open root device \"%s\" or %s: error %d\n",
-				root_device_name, b, err);
+		       root_device_name, b, err);
 		printk("Please append a correct \"root=\" boot option; here are the available partitions:\n");
 
 		printk_all_partitions();
@@ -439,19 +458,19 @@ retry:
 	printk("List of all partitions:\n");
 	printk_all_partitions();
 	printk("No filesystem could mount root, tried: ");
-	for (i = 0, p = fs_names; i < num_fs; i++, p += strlen(p)+1)
+	for (i = 0, p = fs_names; i < num_fs; i++, p += strlen(p) + 1)
 		printk(" %s", p);
 	printk("\n");
 	panic("VFS: Unable to mount root fs on %s", b);
 out:
 	put_page(page);
 }
- 
+
 #ifdef CONFIG_ROOT_NFS
 
-#define NFSROOT_TIMEOUT_MIN	5
-#define NFSROOT_TIMEOUT_MAX	30
-#define NFSROOT_RETRY_MAX	5
+#define NFSROOT_TIMEOUT_MIN 5
+#define NFSROOT_TIMEOUT_MAX 30
+#define NFSROOT_RETRY_MAX 5
 
 static int __init mount_nfs_root(void)
 {
@@ -469,9 +488,9 @@ static int __init mount_nfs_root(void)
 	 * to fall back to other boot methods.
 	 */
 	timeout = NFSROOT_TIMEOUT_MIN;
-	for (try = 1; ; try++) {
-		err = do_mount_root(root_dev, "nfs",
-					root_mountflags, root_data);
+	for (try = 1;; try++) {
+		err = do_mount_root(root_dev, "nfs", root_mountflags,
+				    root_data);
 		if (err == 0)
 			return 1;
 		if (try > NFSROOT_RETRY_MAX)
@@ -491,9 +510,9 @@ static int __init mount_nfs_root(void)
 
 extern int cifs_root_data(char **dev, char **opts);
 
-#define CIFSROOT_TIMEOUT_MIN	5
-#define CIFSROOT_TIMEOUT_MAX	30
-#define CIFSROOT_RETRY_MAX	5
+#define CIFSROOT_TIMEOUT_MIN 5
+#define CIFSROOT_TIMEOUT_MAX 30
+#define CIFSROOT_RETRY_MAX 5
 
 static int __init mount_cifs_root(void)
 {
@@ -506,7 +525,7 @@ static int __init mount_cifs_root(void)
 		return 0;
 
 	timeout = CIFSROOT_TIMEOUT_MIN;
-	for (try = 1; ; try++) {
+	for (try = 1;; try++) {
 		err = do_mount_root(root_dev, "cifs", root_mountflags,
 				    root_data);
 		if (err == 0)
@@ -568,14 +587,16 @@ void __init mount_root(void)
 #ifdef CONFIG_ROOT_NFS
 	if (ROOT_DEV == Root_NFS) {
 		if (!mount_nfs_root())
-			printk(KERN_ERR "VFS: Unable to mount root fs via NFS.\n");
+			printk(KERN_ERR
+			       "VFS: Unable to mount root fs via NFS.\n");
 		return;
 	}
 #endif
 #ifdef CONFIG_CIFS_ROOT
 	if (ROOT_DEV == Root_CIFS) {
 		if (!mount_cifs_root())
-			printk(KERN_ERR "VFS: Unable to mount root fs via SMB.\n");
+			printk(KERN_ERR
+			       "VFS: Unable to mount root fs via SMB.\n");
 		return;
 	}
 #endif
@@ -585,11 +606,13 @@ void __init mount_root(void)
 	}
 #ifdef CONFIG_BLOCK
 	{
-		int err = create_dev("/dev/root", ROOT_DEV);
+		char *name = saved_overlayroot_name[0] ? "/dev/root.ro" : "/dev/root";
+		int err = create_dev(name, ROOT_DEV);
 
 		if (err < 0)
-			pr_emerg("Failed to create /dev/root: %d\n", err);
-		mount_block_root("/dev/root", root_mountflags);
+			pr_emerg("Failed to create %s: %d\n", name, err);
+
+		mount_block_root(name, root_mountflags);
 	}
 #endif
 }
@@ -600,7 +623,8 @@ void __init mount_root(void)
 void __init prepare_namespace(void)
 {
 	if (root_delay) {
-		printk(KERN_INFO "Waiting %d sec before mounting root device...\n",
+		printk(KERN_INFO
+		       "Waiting %d sec before mounting root device...\n",
 		       root_delay);
 		ssleep(root_delay);
 	}
@@ -628,15 +652,26 @@ void __init prepare_namespace(void)
 			root_device_name += 5;
 	}
 
+	if (saved_overlayroot_name[0]) {
+		overlayroot_device_name = saved_overlayroot_name;
+		OVERLAYROOT_DEV = name_to_dev_t(overlayroot_device_name);
+		if (strncmp(overlayroot_device_name, "/dev/", 5) == 0)
+			overlayroot_device_name += 5;
+	}
+
 	if (initrd_load())
 		goto out;
 
 	/* wait for any asynchronous scanning to complete */
-	if ((ROOT_DEV == 0) && root_wait) {
+	if (((ROOT_DEV == 0) &&
+	     (saved_overlayroot_name[0] ? OVERLAYROOT_DEV == 0 : 1)) &&
+	    root_wait) {
 		printk(KERN_INFO "Waiting for root device %s...\n",
-			saved_root_name);
+		       saved_root_name);
 		while (driver_probe_done() != 0 ||
-			(ROOT_DEV = name_to_dev_t(saved_root_name)) == 0)
+		       (ROOT_DEV = name_to_dev_t(saved_root_name)) == 0 ||
+		       (saved_overlayroot_name[0] ? (OVERLAYROOT_DEV = name_to_dev_t(saved_overlayroot_name)) == 0 : 0)
+			   )
 			msleep(5);
 		async_synchronize_full();
 	}
@@ -658,9 +693,9 @@ static int rootfs_init_fs_context(struct fs_context *fc)
 }
 
 struct file_system_type rootfs_fs_type = {
-	.name		= "rootfs",
+	.name = "rootfs",
 	.init_fs_context = rootfs_init_fs_context,
-	.kill_sb	= kill_litter_super,
+	.kill_sb = kill_litter_super,
 };
 
 void __init init_rootfs(void)

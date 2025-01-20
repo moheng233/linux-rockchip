@@ -21,6 +21,7 @@
 .missing-syscalls.d
 .vmlinux.export.c
 
+.cache
 
 *.a
 *.asn1.[ch]
